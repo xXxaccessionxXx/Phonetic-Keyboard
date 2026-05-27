@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.0.3"
+VERSION = "v1.1.0"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -160,32 +160,24 @@ def on_key_event(event):
     return True
 
 # --- UI Methods ---
+is_cheat_sheet_visible = False
+
 def update_ui_state():
     if is_active:
         dot_root.deiconify()
-        status_label.config(text="🟢 Transliterator: ON", fg="lime")
-        show_cheat_sheet()
+        status_label.config(text="🟢 Transliterator: ON", fg="#3fb950")
     else:
         dot_root.withdraw()
-        status_label.config(text="🔴 Transliterator: OFF", fg="red")
-        hide_cheat_sheet()
+        status_label.config(text="🔴 Transliterator: OFF", fg="#ff7b72")
 
-def show_cheat_sheet():
-    w = 250
-    h = 320
-    sw = root.winfo_screenwidth()
-    sh = root.winfo_screenheight()
-    x = sw - w - 40
-    y = sh - h - 60
-    root.geometry(f'{w}x{h}+{x}+{y}')
-    root.deiconify()
-    
-    # Optional: Steal focus so that <FocusOut> reliably works. 
-    # But this interrupts typing. As a compromise, we just show it.
-    # If the user clicks on it and then away, it will hide.
-
-def hide_cheat_sheet(event=None):
-    root.withdraw()
+def toggle_cheat_sheet():
+    global is_cheat_sheet_visible
+    is_cheat_sheet_visible = not is_cheat_sheet_visible
+    if root is not None:
+        if is_cheat_sheet_visible:
+            root.after(0, root.deiconify)
+        else:
+            root.after(0, root.withdraw)
 
 latest_download_url = None
 latest_version_tag = None
@@ -353,14 +345,14 @@ def on_quit(icon, item):
 def on_toggle(icon, item):
     toggle_active()
 
-def on_show_ui(icon, item):
-    root.after(0, show_cheat_sheet)
+def on_toggle_ui(icon, item):
+    toggle_cheat_sheet()
 
 def setup_tray():
     global tray_icon
     image = create_image()
     menu = pystray.Menu(
-        pystray.MenuItem('Show Cheat Sheet', on_show_ui),
+        pystray.MenuItem('Toggle Cheat Sheet', on_toggle_ui),
         pystray.MenuItem('Check for Updates', lambda icon, item: root.after(0, show_update_wizard)),
         pystray.MenuItem('Toggle Keyboard', on_toggle),
         pystray.MenuItem('Exit', on_quit)
@@ -377,17 +369,56 @@ def main():
     root.title("Phonetic Keyboard Overlay")
     root.overrideredirect(True)
     root.attributes('-topmost', True)
-    root.attributes('-alpha', 0.9)
-    root.configure(bg='#2b2b2b')
+    root.attributes('-alpha', 0.95)
+    root.configure(bg='#0d1117')
+    
+    w = 280
+    h = 400
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    x = sw - w - 40
+    y = sh - h - 60
+    root.geometry(f'{w}x{h}+{x}+{y}')
     root.withdraw()
 
-    root.bind('<FocusOut>', hide_cheat_sheet)
+    # Custom Header for dragging
+    header_frame = tk.Frame(root, bg="#161b22", cursor="fleur")
+    header_frame.pack(fill="x")
+    
+    title_label = tk.Label(header_frame, text="Phonetic Keyboard", font=("Segoe UI", 10, "bold"), bg="#161b22", fg="#c9d1d9")
+    title_label.pack(side="left", padx=10, pady=5)
+    
+    close_btn = tk.Label(header_frame, text="✕", font=("Segoe UI", 10, "bold"), bg="#161b22", fg="#8b949e", cursor="hand2")
+    close_btn.pack(side="right", padx=10)
+    close_btn.bind("<Button-1>", lambda e: toggle_cheat_sheet())
+    
+    def start_move(event):
+        root.x = event.x
+        root.y = event.y
+
+    def do_move(event):
+        deltax = event.x - root.x
+        deltay = event.y - root.y
+        x = root.winfo_x() + deltax
+        y = root.winfo_y() + deltay
+        root.geometry(f"+{x}+{y}")
+
+    header_frame.bind("<ButtonPress-1>", start_move)
+    header_frame.bind("<B1-Motion>", do_move)
+    title_label.bind("<ButtonPress-1>", start_move)
+    title_label.bind("<B1-Motion>", do_move)
 
     # UI Content
-    status_label = tk.Label(root, text="🔴 Transliterator: OFF", font=("Segoe UI", 12, "bold"), bg='#2b2b2b', fg="red")
-    status_label.pack(pady=(15, 5))
+    content_frame = tk.Frame(root, bg="#0d1117")
+    content_frame.pack(fill="both", expand=True, padx=15, pady=5)
+    
+    status_label = tk.Label(content_frame, text="🔴 Transliterator: OFF", font=("Segoe UI", 12, "bold"), bg='#0d1117', fg="#ff7b72")
+    status_label.pack(pady=(5, 10))
 
-    tk.Label(root, text="Cheat Sheet", font=("Segoe UI", 11, "underline"), bg='#2b2b2b', fg="white").pack(pady=(10, 5))
+    tk.Label(content_frame, text="Cheat Sheet", font=("Segoe UI", 11, "bold"), bg='#0d1117', fg="#58a6ff").pack(anchor="w", pady=(0, 5))
+    
+    cheat_container = tk.Frame(content_frame, bg="#21262d", highlightthickness=1, highlightbackground="#30363d")
+    cheat_container.pack(fill="both", expand=True)
 
     cheat_text = (
         "shch = щ\n"
@@ -404,9 +435,11 @@ def main():
         " ''  = ъ (hard sign)\n"
     )
     
-    tk.Label(root, text=cheat_text, font=("Consolas", 11), bg='#2b2b2b', fg="#cccccc", justify="left").pack(padx=20, pady=5)
+    tk.Label(cheat_container, text=cheat_text, font=("Consolas", 11), bg='#21262d', fg="#e6edf3", justify="left").pack(padx=15, pady=10)
     
-    tk.Label(root, text="Hotkey: F9 to toggle", font=("Segoe UI", 9, "italic"), bg='#2b2b2b', fg="#888888").pack(side="bottom", pady=10)
+    footer_frame = tk.Frame(root, bg="#0d1117")
+    footer_frame.pack(fill="x", side="bottom", pady=10)
+    tk.Label(footer_frame, text="F9: Toggle ON/OFF | F10: Toggle UI", font=("Segoe UI", 9, "italic"), bg='#0d1117', fg="#8b949e").pack()
 
     # Dot window
     dot_root = tk.Toplevel(root)
@@ -423,6 +456,7 @@ def main():
 
     # 2. Setup Hooks
     keyboard.add_hotkey('f9', toggle_active)
+    keyboard.add_hotkey('f10', toggle_cheat_sheet)
     keyboard.add_hotkey('ctrl+esc', lambda: on_quit(tray_icon, None))
     keyboard.hook(on_key_event, suppress=True)
 

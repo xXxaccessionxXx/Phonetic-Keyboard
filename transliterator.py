@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "vv1.0.2"
+VERSION = "v1.0.3"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -204,39 +204,55 @@ def show_update_wizard():
     is_new_update = fetched_ver > current_ver and latest_download_url
         
     wizard = tk.Toplevel(root)
-    wizard.title("Update Check")
-    wizard.geometry("480x360" if is_new_update else "350x180")
-    wizard.configure(bg="#1e1e1e")
+    wizard.title("Phonetic Keyboard Updater")
+    wizard.configure(bg="#0d1117")
     wizard.attributes('-topmost', True)
     
+    # Window persistence
+    config_path = "updater_config.json"
+    w, h = (500, 420) if is_new_update else (350, 180)
+    pos = ""
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                conf = json.load(f)
+                x, y = conf.get("x"), conf.get("y")
+                if x is not None and y is not None:
+                    pos = f"+{x}+{y}"
+    except Exception:
+        pass
+        
+    wizard.geometry(f"{w}x{h}{pos}")
+    
+    def on_close():
+        try:
+            with open(config_path, "w") as f:
+                json.dump({"x": wizard.winfo_x(), "y": wizard.winfo_y()}, f)
+        except Exception:
+            pass
+        wizard.destroy()
+        
+    wizard.protocol("WM_DELETE_WINDOW", on_close)
+    
     if not is_new_update:
-        tk.Label(wizard, text="✅ Up to Date!", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="lime").pack(pady=(25, 10))
-        tk.Label(wizard, text=f"You are running the latest version ({VERSION}).", font=("Segoe UI", 10), bg="#1e1e1e", fg="#cccccc").pack(pady=5)
-        tk.Button(wizard, text="Close", font=("Segoe UI", 10), bg="#444444", fg="white", activebackground="#555555", relief="flat", padx=20, pady=5, cursor="hand2", command=wizard.destroy).pack(pady=15)
+        tk.Label(wizard, text="✅ Up to Date", font=("Segoe UI", 16, "bold"), bg="#0d1117", fg="#3fb950").pack(pady=(35, 10))
+        tk.Label(wizard, text=f"You are running the latest version ({VERSION}).", font=("Segoe UI", 11), bg="#0d1117", fg="#c9d1d9").pack(pady=5)
+        tk.Button(wizard, text="Awesome!", font=("Segoe UI", 10, "bold"), bg="#21262d", fg="#c9d1d9", activebackground="#30363d", activeforeground="white", relief="flat", padx=25, pady=8, cursor="hand2", command=on_close).pack(pady=15)
         return
     
-    # Sleek UI design
-    tk.Label(wizard, text=f"🚀 New Update Available! ({latest_version_tag})", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="lime").pack(pady=(15, 5))
-    tk.Label(wizard, text="A new version of Phonetic Keyboard is ready to install.", font=("Segoe UI", 10), bg="#1e1e1e", fg="#cccccc").pack(pady=5)
+    # --- Sleek UI design ---
+    header_frame = tk.Frame(wizard, bg="#0d1117")
+    header_frame.pack(fill="x", pady=(20, 10))
     
-    # Release Notes
-    tk.Label(wizard, text="Release Notes:", font=("Segoe UI", 10, "bold"), bg="#1e1e1e", fg="white").pack(anchor="w", padx=20)
+    tk.Label(header_frame, text="✨ Update Available", font=("Segoe UI", 18, "bold"), bg="#0d1117", fg="#58a6ff").pack()
+    tk.Label(header_frame, text=f"Version {latest_version_tag} is ready to be installed.", font=("Segoe UI", 11), bg="#0d1117", fg="#8b949e").pack(pady=2)
     
-    text_frame = tk.Frame(wizard, bg="#2b2b2b", highlightbackground="#444", highlightthickness=1)
-    text_frame.pack(fill="both", expand=True, padx=20, pady=5)
+    # Pack the buttons AT THE BOTTOM first
+    btn_frame = tk.Frame(wizard, bg="#0d1117")
+    btn_frame.pack(side="bottom", fill="x", pady=20)
     
-    notes_text = tk.Text(text_frame, font=("Consolas", 9), bg="#2b2b2b", fg="#cccccc", wrap="word", relief="flat")
-    notes_text.insert("1.0", latest_release_notes)
-    notes_text.config(state="disabled")
-    notes_text.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-    
-    # Scrollbar
-    scrollbar = tk.Scrollbar(text_frame, command=notes_text.yview)
-    notes_text.config(yscrollcommand=scrollbar.set)
-    scrollbar.pack(side="right", fill="y")
-    
-    btn_frame = tk.Frame(wizard, bg="#1e1e1e")
-    btn_frame.pack(pady=10)
+    btn_inner = tk.Frame(btn_frame, bg="#0d1117")
+    btn_inner.pack(anchor="center")
     
     def on_install():
         install_btn.config(text="Downloading...", state="disabled")
@@ -271,15 +287,33 @@ def show_update_wizard():
                 os._exit(0)
             except Exception as e:
                 print(f"Install failed: {e}")
-                wizard.destroy()
+                on_close()
 
         threading.Thread(target=download_and_install, daemon=True).start()
         
-    install_btn = tk.Button(btn_frame, text="Install Now", font=("Segoe UI", 10, "bold"), bg="lime", fg="black", activebackground="#32cd32", relief="flat", padx=15, pady=5, cursor="hand2", command=on_install)
-    install_btn.pack(side="left", padx=10)
-    
-    cancel_btn = tk.Button(btn_frame, text="Later", font=("Segoe UI", 10), bg="#444444", fg="white", activebackground="#555555", relief="flat", padx=15, pady=5, cursor="hand2", command=wizard.destroy)
+    cancel_btn = tk.Button(btn_inner, text="Not Now", font=("Segoe UI", 10, "bold"), bg="#21262d", fg="#c9d1d9", activebackground="#30363d", activeforeground="white", relief="flat", padx=20, pady=8, cursor="hand2", command=on_close)
     cancel_btn.pack(side="left", padx=10)
+    
+    install_btn = tk.Button(btn_inner, text="Install Update", font=("Segoe UI", 10, "bold"), bg="#238636", fg="white", activebackground="#2ea043", activeforeground="white", relief="flat", padx=20, pady=8, cursor="hand2", command=on_install)
+    install_btn.pack(side="left", padx=10)
+
+    # Release Notes frame packed with expand=True, so it takes the REMAINING space
+    content_frame = tk.Frame(wizard, bg="#0d1117")
+    content_frame.pack(fill="both", expand=True, padx=25, pady=0)
+    
+    tk.Label(content_frame, text="What's new:", font=("Segoe UI", 10, "bold"), bg="#0d1117", fg="#c9d1d9").pack(anchor="w", pady=(0, 5))
+    
+    text_container = tk.Frame(content_frame, bg="#161b22", highlightbackground="#30363d", highlightthickness=1)
+    text_container.pack(fill="both", expand=True)
+    
+    notes_text = tk.Text(text_container, font=("Consolas", 10), bg="#161b22", fg="#c9d1d9", wrap="word", relief="flat", padx=10, pady=10)
+    notes_text.insert("1.0", latest_release_notes)
+    notes_text.config(state="disabled")
+    notes_text.pack(side="left", fill="both", expand=True)
+    
+    scrollbar = tk.Scrollbar(text_container, command=notes_text.yview, bg="#161b22", troughcolor="#0d1117")
+    notes_text.config(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side="right", fill="y")
 
 def check_for_updates():
     global latest_download_url, latest_version_tag, latest_release_notes

@@ -23,6 +23,8 @@ def main():
     print(f"Current version: {current_version}")
     
     new_version = input("Enter new version (e.g. 1.0.1): ").strip()
+    if new_version.lower().startswith('v'):
+        new_version = new_version[1:]
     if not new_version:
         print("Version cannot be empty.")
         sys.exit(1)
@@ -46,7 +48,7 @@ def main():
     notes = "\n".join(lines)
     
     # 2. Generate version_info.txt
-    parts = new_version.split('.')
+    parts = [p for p in re.split(r'\D+', new_version) if p]
     while len(parts) < 4:
         parts.append('0')
     v_tuple = f"({parts[0]}, {parts[1]}, {parts[2]}, {parts[3]})"

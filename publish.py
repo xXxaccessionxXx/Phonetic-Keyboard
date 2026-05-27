@@ -3,6 +3,9 @@ import re
 import sys
 import subprocess
 
+# Ensure Git and GitHub CLI are in the system path for this script
+os.environ["PATH"] += r";C:\Program Files\Git\cmd;C:\Program Files\GitHub CLI"
+
 def main():
     print("=== Phonetic Keyboard Release Publisher ===")
     

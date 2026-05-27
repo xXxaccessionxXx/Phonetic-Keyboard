@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.0.1"
+VERSION = "vv1.0.2"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -191,16 +191,29 @@ latest_download_url = None
 latest_version_tag = None
 latest_release_notes = ""
 
+def parse_ver(v):
+    return [int(x) for x in re.findall(r'\d+', str(v))]
+
 def show_update_wizard():
     if latest_version_tag is None:
         # If manually checked and no update logic triggered, or failed
         return
         
+    current_ver = parse_ver(VERSION)
+    fetched_ver = parse_ver(latest_version_tag)
+    is_new_update = fetched_ver > current_ver and latest_download_url
+        
     wizard = tk.Toplevel(root)
-    wizard.title("Update Available")
-    wizard.geometry("480x360")
+    wizard.title("Update Check")
+    wizard.geometry("480x360" if is_new_update else "350x180")
     wizard.configure(bg="#1e1e1e")
     wizard.attributes('-topmost', True)
+    
+    if not is_new_update:
+        tk.Label(wizard, text="✅ Up to Date!", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="lime").pack(pady=(25, 10))
+        tk.Label(wizard, text=f"You are running the latest version ({VERSION}).", font=("Segoe UI", 10), bg="#1e1e1e", fg="#cccccc").pack(pady=5)
+        tk.Button(wizard, text="Close", font=("Segoe UI", 10), bg="#444444", fg="white", activebackground="#555555", relief="flat", padx=20, pady=5, cursor="hand2", command=wizard.destroy).pack(pady=15)
+        return
     
     # Sleek UI design
     tk.Label(wizard, text=f"🚀 New Update Available! ({latest_version_tag})", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="lime").pack(pady=(15, 5))
@@ -282,9 +295,6 @@ def check_for_updates():
                     latest_download_url = asset.get('browser_download_url')
                     break
                     
-        def parse_ver(v):
-            return [int(x) for x in re.findall(r'\d+', str(v))]
-            
         current_ver = parse_ver(VERSION)
         fetched_ver = parse_ver(latest_version_tag)
         

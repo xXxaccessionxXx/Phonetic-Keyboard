@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.0.0"
+VERSION = "v1.0.1"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -189,6 +189,7 @@ def hide_cheat_sheet(event=None):
 
 latest_download_url = None
 latest_version_tag = None
+latest_release_notes = ""
 
 def show_update_wizard():
     if latest_version_tag is None:
@@ -197,16 +198,32 @@ def show_update_wizard():
         
     wizard = tk.Toplevel(root)
     wizard.title("Update Available")
-    wizard.geometry("420x220")
+    wizard.geometry("480x360")
     wizard.configure(bg="#1e1e1e")
     wizard.attributes('-topmost', True)
     
     # Sleek UI design
-    tk.Label(wizard, text=f"🚀 New Update Available! ({latest_version_tag})", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="lime").pack(pady=(20, 10))
-    tk.Label(wizard, text="A new version of Phonetic Keyboard is ready to install.\nIt includes bug fixes and performance improvements.", font=("Segoe UI", 10), bg="#1e1e1e", fg="#cccccc", justify="center").pack(pady=10)
+    tk.Label(wizard, text=f"🚀 New Update Available! ({latest_version_tag})", font=("Segoe UI", 16, "bold"), bg="#1e1e1e", fg="lime").pack(pady=(15, 5))
+    tk.Label(wizard, text="A new version of Phonetic Keyboard is ready to install.", font=("Segoe UI", 10), bg="#1e1e1e", fg="#cccccc").pack(pady=5)
+    
+    # Release Notes
+    tk.Label(wizard, text="Release Notes:", font=("Segoe UI", 10, "bold"), bg="#1e1e1e", fg="white").pack(anchor="w", padx=20)
+    
+    text_frame = tk.Frame(wizard, bg="#2b2b2b", highlightbackground="#444", highlightthickness=1)
+    text_frame.pack(fill="both", expand=True, padx=20, pady=5)
+    
+    notes_text = tk.Text(text_frame, font=("Consolas", 9), bg="#2b2b2b", fg="#cccccc", wrap="word", relief="flat")
+    notes_text.insert("1.0", latest_release_notes)
+    notes_text.config(state="disabled")
+    notes_text.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+    
+    # Scrollbar
+    scrollbar = tk.Scrollbar(text_frame, command=notes_text.yview)
+    notes_text.config(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side="right", fill="y")
     
     btn_frame = tk.Frame(wizard, bg="#1e1e1e")
-    btn_frame.pack(pady=20)
+    btn_frame.pack(pady=10)
     
     def on_install():
         install_btn.config(text="Downloading...", state="disabled")
@@ -252,19 +269,26 @@ def show_update_wizard():
     cancel_btn.pack(side="left", padx=10)
 
 def check_for_updates():
-    global latest_download_url, latest_version_tag
+    global latest_download_url, latest_version_tag, latest_release_notes
     try:
         req = urllib.request.Request(REPO_API_URL, headers={'User-Agent': 'PhoneticKeyboardUpdater'})
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode())
             latest_version_tag = data.get('tag_name')
+            latest_release_notes = data.get('body', 'No release notes provided.')
             assets = data.get('assets', [])
             for asset in assets:
                 if asset.get('name', '').endswith('.exe'):
                     latest_download_url = asset.get('browser_download_url')
                     break
                     
-        if latest_version_tag and latest_version_tag != VERSION and latest_download_url:
+        def parse_ver(v):
+            return [int(x) for x in re.findall(r'\d+', str(v))]
+            
+        current_ver = parse_ver(VERSION)
+        fetched_ver = parse_ver(latest_version_tag)
+        
+        if fetched_ver > current_ver and latest_download_url:
             root.after(0, show_update_wizard)
     except Exception as e:
         print(f"Update check failed: {e}")

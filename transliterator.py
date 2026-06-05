@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.1.0"
+VERSION = "v1.1.1"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -120,7 +120,7 @@ def on_key_event(event):
     # We strictly check 'a'-'z' so we don't accidentally intercept Cyrillic letters we inject.
     if len(name) == 1 and (('a' <= name.lower() <= 'z') or name == "'"):
         if event.event_type != keyboard.KEY_DOWN:
-            return False
+            return True
             
         char = name.lower()
         is_upper = name.isupper()
@@ -144,7 +144,7 @@ def on_key_event(event):
             else:
                 break
                 
-        chars_to_delete = len(produced_cyrillic) - prefix_len
+        chars_to_delete = len(produced_cyrillic) - prefix_len + 1
         if chars_to_delete > 0:
             for _ in range(chars_to_delete):
                 keyboard.send('backspace')
@@ -155,7 +155,7 @@ def on_key_event(event):
             
         produced_cyrillic = new_cyrillic
             
-        return False
+        return True
 
     return True
 

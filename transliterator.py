@@ -11,7 +11,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.1.3"
+VERSION = "v1.1.4"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents

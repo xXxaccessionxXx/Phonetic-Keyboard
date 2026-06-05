@@ -2,6 +2,7 @@ import keyboard
 import sys
 import os
 import threading
+import time
 import tkinter as tk
 import pystray
 from PIL import Image, ImageDraw
@@ -10,7 +11,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.1.2"
+VERSION = "v1.1.3"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -45,6 +46,15 @@ ORTHOGRAPHIC_RULES = [
 is_active = False
 english_buffer = ""
 produced_cyrillic = ""
+pressed_keys = set()
+
+def delayed_injection(chars_to_delete, chars_to_add):
+    time.sleep(0.01)
+    if chars_to_delete > 0:
+        for _ in range(chars_to_delete):
+            keyboard.send('backspace')
+    if chars_to_add:
+        keyboard.write(chars_to_add)
 
 # UI Globals
 root = None
@@ -53,10 +63,11 @@ status_label = None
 tray_icon = None
 
 def toggle_active():
-    global is_active, english_buffer, produced_cyrillic
+    global is_active, english_buffer, produced_cyrillic, pressed_keys
     is_active = not is_active
     english_buffer = ""
     produced_cyrillic = ""
+    pressed_keys.clear()
     
     # Safely update UI from keyboard thread
     if root is not None:
@@ -98,7 +109,7 @@ def transliterate_word(english_word):
     return cyrillic
 
 def on_key_event(event):
-    global is_active, english_buffer, produced_cyrillic
+    global is_active, english_buffer, produced_cyrillic, pressed_keys
 
     if not is_active:
         return True # Let key through
@@ -120,8 +131,13 @@ def on_key_event(event):
     # We strictly check 'a'-'z' so we don't accidentally intercept Cyrillic letters we inject.
     if len(name) == 1 and (('a' <= name.lower() <= 'z') or name == "'"):
         if event.event_type != keyboard.KEY_DOWN:
-            return False
+            pressed_keys.discard(name)
+            return True
             
+        if name in pressed_keys:
+            return True
+        pressed_keys.add(name)
+        
         char = name.lower()
         is_upper = name.isupper()
         
@@ -144,18 +160,14 @@ def on_key_event(event):
             else:
                 break
                 
-        chars_to_delete = len(produced_cyrillic) - prefix_len
-        if chars_to_delete > 0:
-            for _ in range(chars_to_delete):
-                keyboard.send('backspace')
-                
+        chars_to_delete = len(produced_cyrillic) - prefix_len + 1
         chars_to_add = new_cyrillic[prefix_len:]
-        if chars_to_add:
-            keyboard.write(chars_to_add)
+        
+        threading.Thread(target=delayed_injection, args=(chars_to_delete, chars_to_add), daemon=True).start()
             
         produced_cyrillic = new_cyrillic
             
-        return False
+        return True
 
     return True
 

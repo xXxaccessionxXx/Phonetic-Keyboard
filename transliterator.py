@@ -11,7 +11,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.1.4"
+VERSION = "v1.2.0"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -343,9 +343,10 @@ def check_for_updates():
 
 # --- System Tray ---
 def create_image():
-    image = Image.new('RGB', (64, 64), color=(30, 30, 30))
+    image = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))
     dc = ImageDraw.Draw(image)
-    dc.rectangle([16, 16, 48, 48], fill="lime")
+    # A clean green circle matching the ON state color
+    dc.ellipse([12, 12, 52, 52], fill="#3fb950")
     return image
 
 def on_quit(icon, item):

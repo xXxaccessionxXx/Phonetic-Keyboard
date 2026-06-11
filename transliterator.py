@@ -11,7 +11,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.2.0"
+VERSION = "v1.2.1"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -284,10 +284,17 @@ def show_update_wizard():
                     f.write(f"del /f /q \"{old_exe_path}\" 2>NUL\n")
                     f.write(f"move /y \"{current_exe}\" \"{old_exe_path}\"\n")
                     f.write(f"move /y \"{new_exe_path}\" \"{current_exe}\"\n")
+                    f.write("set _MEIPASS2=\n")
+                    f.write("set _MEIPASS=\n")
                     f.write(f"start \"\" \"{current_exe}\"\n")
                     f.write("del \"%~f0\"\n")
                 
-                subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW)
+                # Strip PyInstaller env vars from the subprocess environment just to be safe
+                env = os.environ.copy()
+                env.pop('_MEIPASS2', None)
+                env.pop('_MEIPASS', None)
+                
+                subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW, env=env)
                 os._exit(0)
             except Exception as e:
                 print(f"Install failed: {e}")

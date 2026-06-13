@@ -11,7 +11,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.2.1"
+VERSION = "v1.2.2"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -44,6 +44,8 @@ ORTHOGRAPHIC_RULES = [
 
 # State
 is_active = False
+is_game_mode = False
+is_chat_active = False
 english_buffer = ""
 produced_cyrillic = ""
 pressed_keys = set()
@@ -63,13 +65,25 @@ status_label = None
 tray_icon = None
 
 def toggle_active():
-    global is_active, english_buffer, produced_cyrillic, pressed_keys
+    global is_active, english_buffer, produced_cyrillic, pressed_keys, is_chat_active
     is_active = not is_active
     english_buffer = ""
     produced_cyrillic = ""
     pressed_keys.clear()
+    is_chat_active = False
     
     # Safely update UI from keyboard thread
+    if root is not None:
+        root.after(0, update_ui_state)
+
+def toggle_game_mode():
+    global is_game_mode, is_chat_active, english_buffer, produced_cyrillic, pressed_keys
+    is_game_mode = not is_game_mode
+    is_chat_active = False
+    english_buffer = ""
+    produced_cyrillic = ""
+    pressed_keys.clear()
+    
     if root is not None:
         root.after(0, update_ui_state)
 
@@ -109,18 +123,42 @@ def transliterate_word(english_word):
     return cyrillic
 
 def on_key_event(event):
-    global is_active, english_buffer, produced_cyrillic, pressed_keys
+    global is_active, is_game_mode, is_chat_active, english_buffer, produced_cyrillic, pressed_keys
 
     if not is_active:
         return True # Let key through
+
+    name = event.name
+
+    if is_game_mode:
+        if name in ['enter', 'esc', '/']:
+            if event.event_type == keyboard.KEY_DOWN and name not in pressed_keys:
+                if name == 'enter':
+                    is_chat_active = not is_chat_active
+                elif name == 'esc':
+                    is_chat_active = False
+                elif name == '/':
+                    is_chat_active = True
+                    
+            if event.event_type == keyboard.KEY_DOWN:
+                pressed_keys.add(name)
+            else:
+                pressed_keys.discard(name)
+                
+            english_buffer = ""
+            produced_cyrillic = ""
+            if root is not None:
+                root.after(0, update_ui_state)
+            return True
+            
+        if not is_chat_active:
+            return True
 
     # Check for modifier keys to allow native hotkeys like Ctrl+Z to work
     if keyboard.is_pressed('ctrl') or keyboard.is_pressed('alt') or keyboard.is_pressed('windows'):
         english_buffer = ""
         produced_cyrillic = ""
         return True
-
-    name = event.name
 
     if name in ['space', 'enter', 'tab', 'backspace', '.', ',', '!', '?']:
         english_buffer = ""
@@ -177,10 +215,18 @@ is_cheat_sheet_visible = False
 def update_ui_state():
     if is_active:
         dot_root.deiconify()
-        status_label.config(text="🟢 Transliterator: ON", fg="#3fb950")
+        if is_game_mode:
+            state_text = "🟢 Game Mode: " + ("CHAT ACTIVE" if is_chat_active else "IDLE")
+            color = "#3fb950" if is_chat_active else "#58a6ff"
+            status_label.config(text=state_text, fg=color)
+        else:
+            status_label.config(text="🟢 Transliterator: ON", fg="#3fb950")
     else:
         dot_root.withdraw()
-        status_label.config(text="🔴 Transliterator: OFF", fg="#ff7b72")
+        if is_game_mode:
+            status_label.config(text="🔴 Game Mode: OFF", fg="#ff7b72")
+        else:
+            status_label.config(text="🔴 Transliterator: OFF", fg="#ff7b72")
 
 def toggle_cheat_sheet():
     global is_cheat_sheet_visible
@@ -459,7 +505,7 @@ def main():
     
     footer_frame = tk.Frame(root, bg="#0d1117")
     footer_frame.pack(fill="x", side="bottom", pady=10)
-    tk.Label(footer_frame, text="F9: Toggle ON/OFF | F10: Toggle UI", font=("Segoe UI", 9, "italic"), bg='#0d1117', fg="#8b949e").pack()
+    tk.Label(footer_frame, text="F8: Game Mode | F9: ON/OFF | F10: Toggle UI", font=("Segoe UI", 9, "italic"), bg='#0d1117', fg="#8b949e").pack()
 
     # Dot window
     dot_root = tk.Toplevel(root)
@@ -475,6 +521,7 @@ def main():
     dot_root.withdraw()
 
     # 2. Setup Hooks
+    keyboard.add_hotkey('f8', toggle_game_mode)
     keyboard.add_hotkey('f9', toggle_active)
     keyboard.add_hotkey('f10', toggle_cheat_sheet)
     keyboard.add_hotkey('ctrl+esc', lambda: on_quit(tray_icon, None))

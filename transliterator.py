@@ -10,8 +10,10 @@ import re
 import urllib.request
 import json
 import subprocess
+import ctypes
+from ctypes import wintypes
 
-VERSION = "v1.2.3"
+VERSION = "v1.3.0"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -58,6 +60,77 @@ def delayed_injection(chars_to_delete, chars_to_add):
     if chars_to_add:
         keyboard.write(chars_to_add)
 
+# --- Auto-Detect Logic ---
+kernel32 = ctypes.windll.kernel32
+user32 = ctypes.windll.user32
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+GAMES_LIST_FILE = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'PhoneticKeyboard', 'games_list.json')
+known_games = set()
+
+def load_games_list():
+    global known_games
+    try:
+        if os.path.exists(GAMES_LIST_FILE):
+            with open(GAMES_LIST_FILE, 'r') as f:
+                known_games = set(json.load(f))
+    except:
+        pass
+
+def save_games_list():
+    try:
+        os.makedirs(os.path.dirname(GAMES_LIST_FILE), exist_ok=True)
+        with open(GAMES_LIST_FILE, 'w') as f:
+            json.dump(list(known_games), f)
+    except:
+        pass
+
+def get_active_process_name():
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd: return None
+    pid = ctypes.c_ulong()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    
+    h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not h_process: return None
+    
+    exe_path = ctypes.create_unicode_buffer(260)
+    size = ctypes.c_ulong(260)
+    if kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
+        kernel32.CloseHandle(h_process)
+        return os.path.basename(exe_path.value).lower()
+    kernel32.CloseHandle(h_process)
+    return None
+
+def auto_detect_thread():
+    last_exe = None
+    while True:
+        time.sleep(1)
+        if not is_active:
+            continue
+            
+        exe = get_active_process_name()
+        if exe != last_exe and exe is not None:
+            last_exe = exe
+            if exe in known_games:
+                if not is_game_mode and root is not None:
+                    root.after(0, toggle_game_mode_state, True)
+            else:
+                if is_game_mode and root is not None:
+                    root.after(0, toggle_game_mode_state, False)
+
+def flash_dot():
+    if not is_active: return
+    dot_canvas.itemconfig(dot_oval, fill='white', outline='white')
+    root.after(300, update_ui_state)
+
+def add_current_app_to_games_list():
+    exe_name = get_active_process_name()
+    if exe_name and exe_name not in ["cmd.exe", "python.exe", "explorer.exe"]:
+        known_games.add(exe_name)
+        save_games_list()
+        if root is not None:
+            root.after(0, flash_dot)
+
 # UI Globals
 root = None
 dot_root = None
@@ -76,9 +149,9 @@ def toggle_active():
     if root is not None:
         root.after(0, update_ui_state)
 
-def toggle_game_mode():
+def toggle_game_mode_state(state):
     global is_game_mode, is_chat_active, english_buffer, produced_cyrillic, pressed_keys
-    is_game_mode = not is_game_mode
+    is_game_mode = state
     is_chat_active = False
     english_buffer = ""
     produced_cyrillic = ""
@@ -86,6 +159,9 @@ def toggle_game_mode():
     
     if root is not None:
         root.after(0, update_ui_state)
+
+def toggle_game_mode():
+    toggle_game_mode_state(not is_game_mode)
 
 def transliterate_word(english_word):
     if not english_word:
@@ -216,10 +292,12 @@ def update_ui_state():
     if is_active:
         dot_root.deiconify()
         if is_game_mode:
+            dot_canvas.itemconfig(dot_oval, fill='#58a6ff', outline='#3b8edb')
             state_text = "🟢 Game Mode: " + ("CHAT ACTIVE" if is_chat_active else "IDLE")
             color = "#3fb950" if is_chat_active else "#58a6ff"
             status_label.config(text=state_text, fg=color)
         else:
+            dot_canvas.itemconfig(dot_oval, fill='lime', outline='#00ff00')
             status_label.config(text="🟢 Transliterator: ON", fg="#3fb950")
     else:
         dot_root.withdraw()
@@ -431,7 +509,7 @@ def setup_tray():
 
 # --- Main App Initialization ---
 def main():
-    global root, dot_root, status_label
+    global root, dot_root, status_label, dot_canvas, dot_oval
     
     # Cleanup old executables from updates
     if getattr(sys, 'frozen', False):
@@ -518,7 +596,7 @@ def main():
     
     footer_frame = tk.Frame(root, bg="#0d1117")
     footer_frame.pack(fill="x", side="bottom", pady=10)
-    tk.Label(footer_frame, text="F8: Game Mode | F9: ON/OFF | F10: Toggle UI", font=("Segoe UI", 9, "italic"), bg='#0d1117', fg="#8b949e").pack()
+    tk.Label(footer_frame, text="F8: Game Mode | F9: ON/OFF | F10: UI | F11: Add Game", font=("Segoe UI", 9, "italic"), bg='#0d1117', fg="#8b949e").pack()
 
     # Dot window
     dot_root = tk.Toplevel(root)
@@ -529,7 +607,7 @@ def main():
     
     dot_canvas = tk.Canvas(dot_root, width=12, height=12, bg='black', highlightthickness=0)
     dot_canvas.pack()
-    dot_canvas.create_oval(1, 1, 11, 11, fill='lime', outline='#00ff00')
+    dot_oval = dot_canvas.create_oval(1, 1, 11, 11, fill='lime', outline='#00ff00')
     dot_root.geometry(f"+{root.winfo_screenwidth() - 25}+{root.winfo_screenheight() - 55}")
     dot_root.withdraw()
 
@@ -537,11 +615,14 @@ def main():
     keyboard.add_hotkey('f8', toggle_game_mode)
     keyboard.add_hotkey('f9', toggle_active)
     keyboard.add_hotkey('f10', toggle_cheat_sheet)
+    keyboard.add_hotkey('f11', add_current_app_to_games_list)
     keyboard.add_hotkey('ctrl+esc', lambda: on_quit(tray_icon, None))
     keyboard.hook(on_key_event, suppress=True)
 
-    # Start update checker in background
+    # Start update checker and game auto-detect in background
+    load_games_list()
     threading.Thread(target=check_for_updates, daemon=True).start()
+    threading.Thread(target=auto_detect_thread, daemon=True).start()
 
     # 3. Start Tray
     setup_tray()

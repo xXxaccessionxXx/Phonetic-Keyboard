@@ -11,7 +11,7 @@ import urllib.request
 import json
 import subprocess
 
-VERSION = "v1.2.2"
+VERSION = "v1.2.3"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -259,7 +259,9 @@ def show_update_wizard():
     wizard.attributes('-topmost', True)
     
     # Window persistence
-    config_path = "updater_config.json"
+    app_data_dir = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'PhoneticKeyboard')
+    os.makedirs(app_data_dir, exist_ok=True)
+    config_path = os.path.join(app_data_dir, "updater_config.json")
     w, h = (500, 420) if is_new_update else (350, 180)
     pos = ""
     try:
@@ -337,8 +339,9 @@ def show_update_wizard():
                 
                 # Strip PyInstaller env vars from the subprocess environment just to be safe
                 env = os.environ.copy()
-                env.pop('_MEIPASS2', None)
-                env.pop('_MEIPASS', None)
+                for k in list(env.keys()):
+                    if k.startswith('_MEIPASS') or k.startswith('_PYI_'):
+                        env.pop(k, None)
                 
                 subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW, env=env)
                 os._exit(0)
@@ -430,6 +433,16 @@ def setup_tray():
 def main():
     global root, dot_root, status_label
     
+    # Cleanup old executables from updates
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        for f in os.listdir(exe_dir):
+            if f.endswith('.old.exe'):
+                try:
+                    os.remove(os.path.join(exe_dir, f))
+                except Exception:
+                    pass
+
     # 1. Setup Tkinter Roots
     root = tk.Tk()
     root.title("Phonetic Keyboard Overlay")

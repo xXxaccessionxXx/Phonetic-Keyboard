@@ -13,7 +13,7 @@ import subprocess
 import ctypes
 from ctypes import wintypes
 
-VERSION = "v1.3.0"
+VERSION = "v1.3.1"
 REPO_API_URL = "https://api.github.com/repos/xXxaccessionxXx/Phonetic-Keyboard/releases/latest"
 
 # Dictionary mapping English phonetic strings to Cyrillic equivalents
@@ -246,10 +246,10 @@ def on_key_event(event):
     if len(name) == 1 and (('a' <= name.lower() <= 'z') or name == "'"):
         if event.event_type != keyboard.KEY_DOWN:
             pressed_keys.discard(name)
-            return True
+            return False # Suppress KEY_UP of alphabet keys to prevent ghost keys
             
         if name in pressed_keys:
-            return True
+            return False # Suppress autorepeat
         pressed_keys.add(name)
         
         char = name.lower()
@@ -274,14 +274,15 @@ def on_key_event(event):
             else:
                 break
                 
-        chars_to_delete = len(produced_cyrillic) - prefix_len + 1
+        # Suppress the original English keystroke, so we do NOT delete it manually (+1 removed)
+        chars_to_delete = len(produced_cyrillic) - prefix_len
         chars_to_add = new_cyrillic[prefix_len:]
         
         threading.Thread(target=delayed_injection, args=(chars_to_delete, chars_to_add), daemon=True).start()
             
         produced_cyrillic = new_cyrillic
             
-        return True
+        return False # Suppress KEY_DOWN of the original English keystroke
 
     return True
 
